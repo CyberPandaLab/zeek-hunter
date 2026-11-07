@@ -3,6 +3,16 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Default `keywords.txt` (phase 5, SMB): adds 42 file extensions grouped by family (system and executables,
+  code and development, archives, documents, images). Each is matched as a whole extension (`re:\.ext\b`), so
+  `.js` does not match `.json` and `.log` does not match `.login`. `.zip`, `.tar` and `.sql` move from the
+  backups section to their families.
+- `audit` is commented out by default (too noisy).
+- `keywords.txt` accepts inline comments (two spaces, then `#`).
+
 ## [1.0.0] - 2026-11-07
 
 First public release.

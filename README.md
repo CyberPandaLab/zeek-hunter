@@ -232,9 +232,12 @@ They are created automatically on the first run, in the current folder. Lines st
 | `ioc_ips.txt` | `ip\|threat` | malicious IPs |
 | `ioc_ja3.txt` | `ja3_md5\|threat` | malicious JA3/JA3S fingerprints |
 | `ioc_certs.txt` | `fingerprint\|threat` | malicious certificate fingerprints (SHA1/SHA256) |
-| `keywords.txt` | word or `re:regex` | phase 5 keywords (SMB) |
+| `keywords.txt` | word or `re:regex` (text after two spaces and `#` is a comment) | phase 5 keywords (SMB): sensitive names (ntds.dit, id_rsa, backup…) and file extensions grouped by family (executables, code, archives, documents, images) |
 
 An IOC always overrides the whitelist.
+
+Config files are never overwritten: to get new defaults (e.g. the `keywords.txt` extension list), delete or
+rename the old file and run the script again.
 
 Thresholds are set in the `CONFIGURATION` section at the top of `zeek_hunter.py`:
 

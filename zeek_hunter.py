@@ -152,19 +152,79 @@ def init_environment():
         with open(IOC_CERTS_FILE, "w") as f:
             f.write("# Format: cert_fingerprint|threat_type\n")
     if not os.path.exists(KEYWORD_FILE):
+        # File extensions are matched as a whole extension (re:\.ext\b): .js does not match .json,
+        # .doc does not match .docx and .log does not match .login.
+        ext_sections = [
+            ("System and executables", [
+                ("exe", "Windows executable"),
+                ("msi", "Windows installer package"),
+                ("iso", "optical disc image"),
+                ("dll", "Windows dynamic-link library"),
+                ("sys", "Windows system file"),
+                ("log", "system or application log"),
+            ]),
+            ("Code and development", [
+                ("html", "HyperText Markup Language (web page)"),
+                ("css", "Cascading Style Sheets (web design)"),
+                ("js", "JavaScript script"),
+                ("py", "Python script"),
+                ("json", "JavaScript Object Notation data"),
+                ("xml", "Extensible Markup Language"),
+                ("php", "Hypertext Preprocessor script"),
+                ("sh", "Bash / shell script (Linux)"),
+                ("ps1", "PowerShell script (Windows)"),
+                ("sql", "SQL database query file"),
+            ]),
+            ("Archives and compression", [
+                ("zip", "standard compressed archive"),
+                ("rar", "WinRAR compressed archive"),
+                ("7z", "7-Zip high-compression archive"),
+                ("tar", "file archive (Unix/Linux)"),
+                ("gz", "Gzip compressed archive (Unix/Linux)"),
+            ]),
+            ("Documents and text", [
+                ("pdf", "Portable Document Format (Adobe)"),
+                ("docx", "Microsoft Word document (modern)"),
+                ("doc", "Microsoft Word document (legacy)"),
+                ("xlsx", "Microsoft Excel spreadsheet (modern)"),
+                ("xls", "Microsoft Excel spreadsheet (legacy)"),
+                ("pptx", "Microsoft PowerPoint presentation (modern)"),
+                ("ppt", "Microsoft PowerPoint presentation (legacy)"),
+                ("txt", "plain text file"),
+                ("csv", "comma-separated values"),
+                ("odt", "OpenDocument text (LibreOffice)"),
+                ("ods", "OpenDocument spreadsheet (LibreOffice)"),
+                ("rtf", "Rich Text Format"),
+            ]),
+            ("Images and graphics", [
+                ("jpg", "compressed image (JPEG)"),
+                ("jpeg", "compressed image (JPEG)"),
+                ("png", "image with transparency (Portable Network Graphics)"),
+                ("gif", "animated or simple graphic"),
+                ("svg", "vector image (Scalable Vector Graphics)"),
+                ("webp", "modern web image format"),
+                ("bmp", "uncompressed bitmap image"),
+                ("ico", "application icon or web favicon"),
+                ("psd", "Adobe Photoshop project file"),
+            ]),
+        ]
         default_keywords = [
             "# Plain keywords (case-insensitive) or regexes prefixed with re:",
             "# They are searched in path/name/prev_name of smb_files.log only.",
+            "# Text after two spaces and a # is a comment.",
             "# --- Active Directory & system ---",
             "ntds.dit", "re:\\bSAM\\b", "re:\\bSECURITY\\b", "re:\\bSYSTEM\\b", "shadow", ".dit", "hive",
-            "# --- Secrets & Identifiants ---",
+            "# --- Secrets & credentials ---",
             "id_rsa", "id_dsa", "authorized_keys", "passwd", "password",
             "credential", "secret", "token", "api_key", ".env", "web.config",
-            "# --- Sauvegardes & Archives ---",
-            "backup", ".bak", ".old", ".zip", ".tar", ".sql", "dump",
-            "# --- Divers ---",
-            "confidential", "internal", "audit",
+            "# --- Backups ---",
+            "backup", ".bak", ".old", "dump",
+            "# --- Misc ---",
+            "confidential", "internal", "# audit",
         ]
+        for title, items in ext_sections:
+            default_keywords.append(f"# --- {title} ---")
+            default_keywords += [f"re:\\.{ext}\\b".ljust(16) + f"  # .{ext}: {desc}" for ext, desc in items]
         with open(KEYWORD_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(default_keywords) + "\n")
 
@@ -180,8 +240,12 @@ def load_domain_whitelist():
     return {l.lower() for l in _read_lines(WHITELIST_FILE)}
 
 
+_INLINE_COMMENT_RE = re.compile(r"\s{2,}#.*$")
+
+
 def load_keywords():
-    return _read_lines(KEYWORD_FILE)
+    """keywords.txt lines; text after two spaces and a # is an inline comment."""
+    return [k for k in (_INLINE_COMMENT_RE.sub("", l).strip() for l in _read_lines(KEYWORD_FILE)) if k]
 
 
 def load_ioc_database(file_path):
