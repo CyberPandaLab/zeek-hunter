@@ -222,9 +222,11 @@ def init_environment():
             "# --- Misc ---",
             "confidential", "internal", "# audit",
         ]
+        disabled = {"xml", "csv"}  # very common on file shares: commented out (hidden) by default
         for title, items in ext_sections:
             default_keywords.append(f"# --- {title} ---")
-            default_keywords += [f"re:\\.{ext}\\b".ljust(16) + f"  # .{ext}: {desc}" for ext, desc in items]
+            default_keywords += [("# " if ext in disabled else "") + f"re:\\.{ext}\\b".ljust(16) + f"  # .{ext}: {desc}"
+                             for ext, desc in items]
         with open(KEYWORD_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(default_keywords) + "\n")
 
