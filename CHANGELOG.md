@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   code and development, archives, documents, images). Each is matched as a whole extension (`re:\.ext\b`), so
   `.js` does not match `.json` and `.log` does not match `.login`. `.zip`, `.tar` and `.sql` move from the
   backups section to their families.
-- `audit` is commented out by default (too noisy).
+- `audit`, `.xml` and `.csv` are commented out by default (too noisy); remove the `#` to enable them.
 - `keywords.txt` accepts inline comments (two spaces, then `#`).
 
 ## [1.0.0] - 2026-11-07
