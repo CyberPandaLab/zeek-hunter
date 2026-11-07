@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Investigation data: never publish captures, logs or results
+*.pcap
+*.pcapng
+*.log
+*.log.gz
+pcaps/
+zeek_output/
+report/
+extract_files/
+
+# Config files generated on first run (case-specific whitelists, IOCs, keywords)
+whitelist.txt
+ip_whitelist*.txt
+ip_whitelist_learned_map.csv
+ioc_*.txt
+keywords.txt
+*.tmp
+
+# Downloaded IOC feeds
+urlhaus*.csv
+urlhaus*.zip
+sslblacklist*.csv
+ja3_fingerprints*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
