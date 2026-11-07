@@ -1,0 +1,5 @@
+# Force Unix line endings: avoids the "$'\r': command not found" error after a trip through Windows
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
