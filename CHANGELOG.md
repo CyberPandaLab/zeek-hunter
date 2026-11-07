@@ -14,6 +14,8 @@ First public release.
 - Skips unreadable PCAPs (`bad_pcaps.txt`), lists PCAPs on which Zeek fails (`failed_pcaps.txt`) and checks
   the Zeek script (`zeek -a`) before starting the jobs.
 - Extracts email bodies (`extract_files/smtp-<fuid>`) and writes an `smtp_received.log` (`Received` headers).
+- Hashes every file seen (MD5/SHA1/SHA256 in `files.log`), so attachments and downloads can be checked
+  against IOCs.
 - Paths as arguments (relative or absolute); `MAX_JOBS` and `EXTRA_SCRIPTS` (`ja3` package) as environment
   variables.
 
@@ -28,6 +30,7 @@ First public release.
   Cloudflare), URLhaus and SSLBL IOC ingestion.
 - Per-host score, text summary, CSV/JSON exports (times written as `… UTC`).
 - All messages, menus, exports and documentation in English.
+- Tested end to end with Zeek 9.0.1 and the `ja3` package (SMTP, HTTP, proxy CONNECT, DNS, TLS, RDP traffic).
 
 ### Fixes and improvements over the pre-release versions
 - **Beaconing (phases 3 and 9):** timestamps are now sampled at regular intervals over the whole period,

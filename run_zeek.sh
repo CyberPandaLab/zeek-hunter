@@ -66,7 +66,9 @@ cat > "$ZEEK_SCRIPT" <<'EOF'
 # 1) Extracts SMTP email bodies (text/html, text/plain) to extract_files/smtp-<fuid>
 #    The <fuid> matches the "fuids" field of smtp.log and the "fuid" field of files.log
 # 2) Logs every Received header to smtp_received.log (uid + trans_depth = smtp.log key)
+# 3) Hashes every file (MD5/SHA1/SHA256 in files.log: attachments, downloads) for IOC lookups
 @load base/files/extract
+@load frameworks/files/hash-all-files
 
 module SMTPRecv;
 

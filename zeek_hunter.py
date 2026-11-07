@@ -1181,7 +1181,7 @@ def phase2_spearphishing(exts=None):
     for host, (n, srcs, uris, first, pe, ex_uri, uid, dsts) in ordered[:20]:
         print(f"  {'[PE]' if pe else '    ':<3} {cut(host, 40):<40} {n:>5} {len(uris):>5} {len(srcs):>6}  "
               f"{format_ts(first):<20} {defang(cut(display_url(host, ex_uri), 70))}")
-        print(f"  {'':<4}↳ postes : {', '.join(sorted(srcs)[:6])}{' ...' if len(srcs) > 6 else ''} | uid={uid}")
+        print(f"  {'':<4}↳ workstations: {', '.join(sorted(srcs)[:6])}{' ...' if len(srcs) > 6 else ''} | uid={uid}")
     if len(ordered) > 20:
         print(f"  ... {len(ordered) - 20} more host(s) in the export (--out).")
     write_table("suspicious_downloads", ["ts", "src_ip", "dst_ip", "host", "url", "reason", "count", "uid", "log"],
@@ -1509,11 +1509,11 @@ def phase7_exfil_scan():
         f = True
         dsts, ports = {d for d, _ in s}, {p for _, p in s}
         if len(dsts) >= 20 and len(ports) <= 5:
-            kind = "balayage horizontal"
+            kind = "horizontal scan"
         elif len(ports) >= 50 and len(dsts) <= 3:
-            kind = "balayage vertical (ports)"
+            kind = "vertical scan (ports)"
         else:
-            kind = "scan mixte"
+            kind = "mixed scan"
         print(f"  [!] {o} : {len(dsts)} targets / {len(ports)} ports -> {kind}")
         add_finding(phase, "high" if is_private_ip(o) else "info", o, "", "scan",
                     f"{kind}: {len(dsts)} targets, {len(ports)} ports")
@@ -1954,7 +1954,7 @@ def correlate(target=None, since=None, until=None, limit=60, out_dir=None, only_
             if kind == "ssl" and fuid in x509:
                 fp, subject, issuer, nvb, nva, kalg, klen, san, serial = x509[fuid]
                 line = (f"subject={subject} issuer={issuer} fp={fp} "
-                        f"valide {format_ts(nvb)[:10]}→{format_ts(nva)[:10]} {kalg}-{klen}")
+                        f"valid {format_ts(nvb)[:10]}→{format_ts(nva)[:10]} {kalg}-{klen}")
                 rows_out.append({"ts": format_ts(ts), "uid": u, "log": "x509", "info": line})
                 if show:
                     print(f"      {'':<20} └─ cert  {line}")
@@ -2368,11 +2368,14 @@ def task_smtp(path):
 
 def task_smtp_files(path):
     out = {}
-    for row in iter_zeek(path, ["fuid", "source", "mime_type", "filename", "total_bytes", "md5", "sha1", "sha256"]):
+    for row in iter_zeek(path, ["fuid", "source", "mime_type", "filename", "total_bytes", "seen_bytes", "md5", "sha1",
+                                "sha256"]):
         if row.get("source") == "SMTP" and row.get("fuid"):
             h = next((row.get(k) for k in ("sha256", "sha1", "md5") if row.get(k, "-") not in UNSET), "-")
             out[row["fuid"]] = (decode_mime(row.get("filename", "-")), row.get("mime_type", "-"),
-                                row.get("total_bytes", "-"), h)
+                                # total_bytes is often unset for MIME parts: fall back to seen_bytes
+                                row.get("total_bytes", "-") if row.get("total_bytes", "-") not in UNSET
+                                else row.get("seen_bytes", "-"), h)
     return out
 
 
@@ -2957,7 +2960,7 @@ def print_senders(recs, top):
     for rec in recs:
         if rec["label"] == "SENT":
             continue
-        dom = addr_domain(rec["from"] or rec["mf"]) or "(inconnu)"
+        dom = addr_domain(rec["from"] or rec["mf"]) or "(unknown)"
         s = snd.get(dom)
         if s is None:
             s = snd[dom] = [0, 0, set(), 0.0, 0]
@@ -2995,7 +2998,7 @@ def print_mail_details(recs):
             print(f"      Relay seen (HELO): {rec['helo'] or '-'} | origin ({rec['orig_src'] or '-'}): "
                   f"{fmt_origin(rec) or '-'}")
         for a in rec["atts"]:
-            print(f"      Attachment: {a[0]} ({a[1]}, {a[2]} o) hash={a[3]}{' [!]' if a in rec['bad_att'] else ''}")
+            print(f"      Attachment: {a[0]} ({a[1]}, {a[2]} bytes) hash={a[3]}{' [!]' if a in rec['bad_att'] else ''}")
         links = sorted(rec["links"].values(), key=lambda l: (-_SEV_RANK[l["sev"]], l["visit"] is None))
         for l in links[:15]:
             extra = list(l["flags"])
