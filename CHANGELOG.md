@@ -14,8 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `keywords.txt` accepts inline comments (two spaces, then `#`).
 - Phase 5 severities: `ntds.dit` and `SAM` are now CRITICAL; `SECURITY`, `SYSTEM` (registry hives) and
   `confidential` are now HIGH (previously MEDIUM, `ntds.dit` previously HIGH).
+  Document/text and image/graphics extensions are LOW; the other extensions stay MEDIUM.
 - Phase 5 results are sorted by severity (most severe first, then chronological) with a severity tag
-  (`[CRITICAL]`, `[HIGH]`, `[MEDIUM]`) and a per-severity count.
+  (`[CRITICAL]`, `[HIGH]`, `[MEDIUM]`, `[LOW]`) and a per-severity count.
 - The internal host score shown at the end of a run is now the same report as `summary_*.txt`: severity
   breakdown per host, then every CRITICAL / HIGH finding.
 
