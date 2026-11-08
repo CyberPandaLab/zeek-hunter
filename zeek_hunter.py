@@ -61,9 +61,9 @@ CLI_EXTS = None
 STD_PORTS = {80, 443, 53}
 LATERAL_PORTS = {445: "SMB", 3389: "RDP", 5985: "WinRM", 5986: "WinRM-TLS", 135: "DCE-RPC"}
 PE_MIMES = ("x-dosexec", "x-msdownload", "x-msdos-program", "portable-executable")
-# Phase 5 keywords reported as HIGH (all the others are MEDIUM); compared with the matched text in lowercase
-HIGH_VALUE_KEYWORDS = {"ntds.dit", "id_rsa", "id_dsa", "authorized_keys", "shadow",
-                       "sam", "security", "system", "confidential"}
+# Phase 5 keyword severities (all the others are MEDIUM); compared with the matched text in lowercase
+CRITICAL_KEYWORDS = {"ntds.dit", "sam"}
+HIGH_VALUE_KEYWORDS = {"id_rsa", "id_dsa", "authorized_keys", "shadow", "security", "system", "confidential"}
 FAIL_STATES = {"S0", "REJ", "RSTOS0", "RSTRH"}
 
 # Detection thresholds (tune them for each case)
@@ -1494,16 +1494,16 @@ def phase5_leak_hunting():
     per_kw = Counter(k[4] for k in merged)
     if per_kw:
         print("  Breakdown: " + ", ".join(f"{k}={v}" for k, v in per_kw.most_common()))
-    rows = sorted(((("high" if kw in HIGH_VALUE_KEYWORDS else "medium"), key, val) for key, val in merged.items()
-                   for kw in (key[4],)),
+    rows = sorted(((("critical" if kw in CRITICAL_KEYWORDS else "high" if kw in HIGH_VALUE_KEYWORDS else "medium"),
+                    key, val) for key, val in merged.items() for kw in (key[4],)),
                   key=lambda x: (-_SEV_RANK[x[0]], x[2][1]))  # highest severity first, then chronological
     by_sev = Counter(sev for sev, _, _ in rows)
     if rows:
         print("  Severity: " + ", ".join(f"{k}={by_sev[k]}" for k in ("critical", "high", "medium", "low") if by_sev[k]))
     for i, (sev, (o, r, action, text, kw, log), (n, ts, uid)) in enumerate(rows):
         if i < DISPLAY_LIMIT:
-            print(f"  {SEV_TAGS[sev]:<8} [{kw}] {format_ts(ts)} {o} -> {r} {action} x{n} uid={uid}\n"
-                  f"           {text}\n           ({log})")
+            print(f"  {SEV_TAGS[sev]:<10} [{kw}] {format_ts(ts)} {o} -> {r} {action} x{n} uid={uid}\n"
+                  f"             {text}\n             ({log})")
         add_finding(phase, sev, o, r, "smb_leak", f"{action} {text} [{kw}] x{n}", format_ts(ts), log, uid)
     if len(merged) > DISPLAY_LIMIT:
         print(f"  ... {len(merged) - DISPLAY_LIMIT} more lines in the export (--out).")
