@@ -647,23 +647,30 @@ def title(txt):
     print(f"\n[*] --- {txt} ---")
 
 
+# Per-host score: each severity counts weight x (1 + log2(number of findings of that severity)).
+# A single CRITICAL outweighs any volume of LOW, and volume still separates hosts of the same level
+# (100 findings count about 7.6 times one finding, not 100 times).
+SEV_WEIGHTS = {"critical": 100, "high": 25, "medium": 5, "low": 1, "info": 0}
+SCORE_FORMULA = ("score = sum per severity of weight x (1 + log2(count)), "
+                 "weights critical=100, high=25, medium=5, low=1")
+
+
+def host_score(sev_counts):
+    return round(sum(SEV_WEIGHTS.get(k, 0) * (1 + math.log2(n)) for k, n in sev_counts.items() if n > 0))
+
+
 def print_host_scores(top=15):
-    w = {"critical": 5, "high": 3, "medium": 2, "low": 1, "info": 0}
-    score, kinds = Counter(), defaultdict(set)
-    for f in FINDINGS:
+    sevs, phases, kinds = defaultdict(Counter), defaultdict(set), defaultdict(set)
+    for f in FINDINGS:  # single pass over the findings
         if f["src"] and is_private_ip(f["src"]):
-            score[f["src"]] += w.get(f["severity"], 0)
-            kinds[f["src"]].add(f["type"])
-    if top:
-        print("\n" + "=" * 60 + "\n INTERNAL HOST SCORE (weighted sum of findings)\n" + "=" * 60)
-    # Single pass over the findings (instead of a full pass per host)
-    sevs, phases = defaultdict(Counter), defaultdict(set)
-    for f in FINDINGS:
-        if f["src"] in score:
             sevs[f["src"]][f["severity"]] += 1
             phases[f["src"]].add(f["phase"])
+            kinds[f["src"]].add(f["type"])
+    score = Counter({ip: host_score(c) for ip, c in sevs.items()})
+    if top:
+        print("\n" + "=" * 60 + "\n INTERNAL HOST SCORE (findings weighted by severity)\n" + "=" * 60)
     rows = []
-    for ip, s in score.most_common():
+    for ip, s in sorted(score.items(), key=lambda x: (-x[1], x[0])):
         sev = sevs[ip]
         rows.append([ip, s, sev.get("critical", 0), sev.get("high", 0), sev.get("medium", 0), sev.get("low", 0),
                      " ".join(sorted(phases[ip])), ", ".join(sorted(kinds[ip]))])
@@ -683,7 +690,7 @@ SEV_TAGS = {"critical": "[CRITICAL]", "high": "[HIGH]", "medium": "[MEDIUM]", "l
 def report_lines(host_rows, top=15, limit=None):
     """Top internal hosts with their severity breakdown, then every CRITICAL / HIGH finding.
     Same text on screen and in summary_*.txt (`limit` caps the findings list on screen only)."""
-    lines = [f"Top {top} internal hosts (weighted score critical=5, high=3, medium=2, low=1):"]
+    lines = [f"Top {top} internal hosts ({SCORE_FORMULA}):"]
     for ip, sc, c, h, m, l, ph, kinds in host_rows[:top]:
         lines.append(f"  {ip:<15} score={sc:<4} critical={c} high={h} medium={m} low={l} phases={ph} | {kinds}")
     crit = sorted((x for x in FINDINGS if x["severity"] in ("critical", "high")),
