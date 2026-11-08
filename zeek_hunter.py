@@ -651,8 +651,11 @@ def title(txt):
 # A single CRITICAL outweighs any volume of LOW, and volume still separates hosts of the same level
 # (100 findings count about 7.6 times one finding, not 100 times).
 SEV_WEIGHTS = {"critical": 100, "high": 25, "medium": 5, "low": 1, "info": 0}
-SCORE_FORMULA = ("score = sum per severity of weight x (1 + log2(count)), "
-                 "weights critical=100, high=25, medium=5, low=1")
+# Multi-phase bonus: +25 % per extra phase in which the host has at least one MEDIUM or worse finding
+# (an attack chain such as phishing -> C2 -> exfiltration weighs more than alerts from a single phase).
+PHASE_BONUS = 0.25
+SCORE_FORMULA = ("score = sum per severity of weight x (1 + log2(count)) [critical=100 high=25 medium=5 low=1], "
+                 "+25% per extra phase with a MEDIUM+ finding")
 
 
 def host_score(sev_counts):
@@ -660,20 +663,23 @@ def host_score(sev_counts):
 
 
 def print_host_scores(top=15):
-    sevs, phases, kinds = defaultdict(Counter), defaultdict(set), defaultdict(set)
+    sevs, phases, kinds, sig = defaultdict(Counter), defaultdict(set), defaultdict(set), defaultdict(set)
     for f in FINDINGS:  # single pass over the findings
         if f["src"] and is_private_ip(f["src"]):
             sevs[f["src"]][f["severity"]] += 1
             phases[f["src"]].add(f["phase"])
             kinds[f["src"]].add(f["type"])
-    score = Counter({ip: host_score(c) for ip, c in sevs.items()})
+            if f["severity"] in ("critical", "high", "medium"):
+                sig[f["src"]].add(f["phase"])  # phases that count for the multi-phase bonus
+    mult = {ip: 1 + PHASE_BONUS * max(0, len(sig[ip]) - 1) for ip in sevs}
+    score = Counter({ip: round(host_score(c) * mult[ip]) for ip, c in sevs.items()})
     if top:
         print("\n" + "=" * 60 + "\n INTERNAL HOST SCORE (findings weighted by severity)\n" + "=" * 60)
     rows = []
     for ip, s in sorted(score.items(), key=lambda x: (-x[1], x[0])):
         sev = sevs[ip]
         rows.append([ip, s, sev.get("critical", 0), sev.get("high", 0), sev.get("medium", 0), sev.get("low", 0),
-                     " ".join(sorted(phases[ip])), ", ".join(sorted(kinds[ip]))])
+                     " ".join(sorted(phases[ip])), ", ".join(sorted(kinds[ip])), f"x{mult[ip]:g}"])
     if not score:
         if top:
             print("[-] No finding attached to an internal host.")
@@ -691,8 +697,9 @@ def report_lines(host_rows, top=15, limit=None):
     """Top internal hosts with their severity breakdown, then every CRITICAL / HIGH finding.
     Same text on screen and in summary_*.txt (`limit` caps the findings list on screen only)."""
     lines = [f"Top {top} internal hosts ({SCORE_FORMULA}):"]
-    for ip, sc, c, h, m, l, ph, kinds in host_rows[:top]:
-        lines.append(f"  {ip:<15} score={sc:<4} critical={c} high={h} medium={m} low={l} phases={ph} | {kinds}")
+    for ip, sc, c, h, m, l, ph, kinds, mult in host_rows[:top]:
+        bonus = f" ({mult} multi-phase)" if mult != "x1" else ""
+        lines.append(f"  {ip:<15} score={sc:<4} critical={c} high={h} medium={m} low={l} phases={ph}{bonus} | {kinds}")
     crit = sorted((x for x in FINDINGS if x["severity"] in ("critical", "high")),
                   key=lambda x: (x["severity"] != "critical", x["first_seen"] or "~"))
     lines.append(f"\nCRITICAL / HIGH findings ({len(crit)}):")
@@ -715,7 +722,7 @@ def export_findings(out_dir, host_rows=None):
     p_hosts = os.path.join(out_dir, f"host_scores_{stamp}.csv")
     with open(p_hosts, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["ip", "score", "critical", "high", "medium", "low", "phases", "finding_types"])
+        w.writerow(["ip", "score", "critical", "high", "medium", "low", "phases", "finding_types", "phase_multiplier"])
         w.writerows(host_rows)
     p_sum = os.path.join(out_dir, f"summary_{stamp}.txt")
     by_phase = Counter(f["phase"] for f in FINDINGS)
