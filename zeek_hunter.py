@@ -363,6 +363,15 @@ def _s(v):
     return str(v)
 
 
+_ZEEK_ESC_RE = re.compile(r"\\(\\|x[0-9a-fA-F]{2})")
+
+
+def unescape_zeek(v):
+    r"""Zeek TSV logs escape a backslash as \\ and non-printable bytes as \xNN: restore the real value
+    (an SMB path logged as \\\\DC01\\C$ becomes \\DC01\C$)."""
+    return _ZEEK_ESC_RE.sub(lambda m: "\\" if m.group(1) == "\\" else chr(int(m.group(1)[1:], 16)), v)
+
+
 def iter_zeek(path, columns=None):
     """Iterates over a Zeek log (TSV or JSON, .gz accepted). `columns` limits the fields built (saves CPU)."""
     fields, idx = None, None
@@ -388,7 +397,7 @@ def iter_zeek(path, columns=None):
                 v = line.rstrip("\r\n").split("\t")
                 if len(v) != len(fields):
                     continue
-                yield {n: v[i] for n, i in idx}
+                yield {n: (unescape_zeek(v[i]) if "\\" in v[i] else v[i]) for n, i in idx}
     except (OSError, EOFError, zlib.error, ValueError) as e:
         sys.stderr.write(f"\n[!] Read interrupted on {path}: {e}\n")
 
@@ -657,9 +666,33 @@ def print_host_scores(top=15):
         if top:
             print("[-] No finding attached to an internal host.")
         return rows
-    for ip, s in score.most_common(top):
-        print(f"  {ip:<15} score={s:<4} {', '.join(sorted(kinds[ip]))}")
+    if top:
+        for line in report_lines(rows, top, limit=DISPLAY_LIMIT):
+            print(line)
     return rows
+
+
+SEV_TAGS = {"critical": "[CRITICAL]", "high": "[HIGH]", "medium": "[MEDIUM]", "low": "[LOW]", "info": "[INFO]"}
+
+
+def report_lines(host_rows, top=15, limit=None):
+    """Top internal hosts with their severity breakdown, then every CRITICAL / HIGH finding.
+    Same text on screen and in summary_*.txt (`limit` caps the findings list on screen only)."""
+    lines = [f"Top {top} internal hosts (weighted score critical=5, high=3, medium=2, low=1):"]
+    for ip, sc, c, h, m, l, ph, kinds in host_rows[:top]:
+        lines.append(f"  {ip:<15} score={sc:<4} critical={c} high={h} medium={m} low={l} phases={ph} | {kinds}")
+    crit = sorted((x for x in FINDINGS if x["severity"] in ("critical", "high")),
+                  key=lambda x: (x["severity"] != "critical", x["first_seen"] or "~"))
+    lines.append(f"\nCRITICAL / HIGH findings ({len(crit)}):")
+    if not crit:
+        lines.append("  None.")
+    for i, x in enumerate(crit):
+        if limit is not None and i >= limit:
+            lines.append(f"  ... {len(crit) - limit} more in summary_*.txt (--out).")
+            break
+        lines.append(f"  [{x['phase']}] {x['severity'].upper():<8} {x['first_seen'] or '-':<20} {x['src']} -> {x['dst']} "
+                     f"{x['type']} : {x['detail'][:200]}{' uid=' + x['uid'] if x['uid'] else ''}")
+    return lines
 
 
 def export_findings(out_dir, host_rows=None):
@@ -684,14 +717,7 @@ def export_findings(out_dir, host_rows=None):
                                              for k in ("critical", "high", "medium", "low", "info")) + "\n")
         f.write("By phase   : " + ", ".join(f"{k}={v}" for k, v in sorted(by_phase.items())) + "\n")
         f.write("By type    : " + ", ".join(f"{k}={v}" for k, v in by_type.most_common()) + "\n\n")
-        f.write("Top 15 internal hosts (weighted score critical=5, high=3, medium=2, low=1):\n")
-        for ip, sc, c, h, m, l, ph, kinds in host_rows[:15]:
-            f.write(f"  {ip:<15} score={sc:<4} critical={c} high={h} medium={m} low={l} phases={ph} | {kinds}\n")
-        f.write("\nCRITICAL / HIGH findings:\n")
-        for x in sorted((x for x in FINDINGS if x["severity"] in ("critical", "high")),
-                        key=lambda x: (x["severity"] != "critical", x["first_seen"] or "~")):
-            f.write(f"  [{x['phase']}] {x['severity'].upper():<8} {x['first_seen'] or '-':<20} {x['src']} -> {x['dst']} {x['type']} : "
-                    f"{x['detail'][:200]}{' uid=' + x['uid'] if x['uid'] else ''}\n")
+        f.write("\n".join(report_lines(host_rows)) + "\n")
     cols = ["phase", "severity", "src", "dst", "type", "detail", "first_seen", "log", "uid"]
     p_csv = os.path.join(out_dir, f"findings_{stamp}.csv")
     with open(p_csv, "w", newline="", encoding="utf-8") as f:
@@ -1466,10 +1492,16 @@ def phase5_leak_hunting():
     per_kw = Counter(k[4] for k in merged)
     if per_kw:
         print("  Breakdown: " + ", ".join(f"{k}={v}" for k, v in per_kw.most_common()))
-    for i, ((o, r, action, text, kw, log), (n, ts, uid)) in enumerate(sorted(merged.items(), key=lambda x: x[1][1])):
-        sev = "high" if kw in HIGH_VALUE_KEYWORDS else "medium"
+    rows = sorted(((("high" if kw in HIGH_VALUE_KEYWORDS else "medium"), key, val) for key, val in merged.items()
+                   for kw in (key[4],)),
+                  key=lambda x: (-_SEV_RANK[x[0]], x[2][1]))  # highest severity first, then chronological
+    by_sev = Counter(sev for sev, _, _ in rows)
+    if rows:
+        print("  Severity: " + ", ".join(f"{k}={by_sev[k]}" for k in ("critical", "high", "medium", "low") if by_sev[k]))
+    for i, (sev, (o, r, action, text, kw, log), (n, ts, uid)) in enumerate(rows):
         if i < DISPLAY_LIMIT:
-            print(f"  [!] [{kw}] {format_ts(ts)} {o} -> {r} {action} x{n} uid={uid}\n      {text}\n      ({log})")
+            print(f"  {SEV_TAGS[sev]:<8} [{kw}] {format_ts(ts)} {o} -> {r} {action} x{n} uid={uid}\n"
+                  f"           {text}\n           ({log})")
         add_finding(phase, sev, o, r, "smb_leak", f"{action} {text} [{kw}] x{n}", format_ts(ts), log, uid)
     if len(merged) > DISPLAY_LIMIT:
         print(f"  ... {len(merged) - DISPLAY_LIMIT} more lines in the export (--out).")
