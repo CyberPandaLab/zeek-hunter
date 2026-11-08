@@ -20,6 +20,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **Per-host score:** weights critical=100, high=25, medium=5, low=1, and the number of findings counts with
   diminishing returns (`weight x (1 + log2(count))` per severity). A host with CRITICAL findings is no longer
   outranked by a host with hundreds of LOW findings.
+  Multi-phase bonus: +25 % per extra phase in which the host has a MEDIUM or worse finding (shown as
+  `x1.25 multi-phase` in the report, and in a new `phase_multiplier` column of `host_scores_*.csv`).
 - The internal host score shown at the end of a run is now the same report as `summary_*.txt`: severity
   breakdown per host, then every CRITICAL / HIGH finding.
 
