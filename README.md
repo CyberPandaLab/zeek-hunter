@@ -211,14 +211,16 @@ Every detection produces a **finding** (phase, severity, source, destination, ty
 
 | Severity | Weight in the per-host score |
 |---|---|
-| critical | 5 |
-| high | 3 |
-| medium | 2 |
+| critical | 100 |
+| high | 25 |
+| medium | 5 |
 | low | 1 |
 | info | 0 |
 
-At the end of a run (`--phase …` or menu `e`), the **internal host score** adds up the findings attached to each
-private IP. This is the list of machines to investigate first.
+At the end of a run (`--phase …` or menu `e`), the **internal host score** ranks each private IP by its findings.
+For each severity, the host gets `weight x (1 + log2(number of findings))`, and these are added up. The volume
+counts with diminishing returns (100 findings weigh about 7.6 times one finding, not 100 times), so a single
+CRITICAL always outweighs any number of LOW findings. This is the list of machines to investigate first.
 
 ## 7. Configuration files
 
@@ -263,7 +265,7 @@ With `--out FOLDER` (or menu `e`, default `./report`), each file is timestamped 
 | File | Content |
 |---|---|
 | `summary_*.txt` | **read this first**: counts by severity/phase/type, top 15 hosts, all CRITICAL/HIGH findings |
-| `host_scores_*.csv` | score per internal host |
+| `host_scores_*.csv` | score per internal host, with the count of findings per severity |
 | `findings_*.csv` / `.json` | all findings |
 | `emails_*.csv` | all emails: score, severity, relay, origin, sending client, header date, attachments (with SHA256), reasons… |
 | `email_links_*.csv` | all extracted links, with alerts and visits |
