@@ -66,6 +66,65 @@ CRITICAL_KEYWORDS = {"ntds.dit", "sam"}
 HIGH_VALUE_KEYWORDS = {"id_rsa", "id_dsa", "authorized_keys", "shadow", "security", "system", "confidential"}
 FAIL_STATES = {"S0", "REJ", "RSTOS0", "RSTRH"}
 
+# Phase 5 file extensions written to the default keywords.txt. Each is matched as a whole extension
+# (re:\.ext\b): .js does not match .json, .doc does not match .docx and .log does not match .login.
+KEYWORD_EXT_SECTIONS = [
+    ("System and executables", [
+        ("exe", "Windows executable"),
+        ("msi", "Windows installer package"),
+        ("iso", "optical disc image"),
+        ("dll", "Windows dynamic-link library"),
+        ("sys", "Windows system file"),
+        ("log", "system or application log"),
+    ]),
+    ("Code and development", [
+        ("html", "HyperText Markup Language (web page)"),
+        ("css", "Cascading Style Sheets (web design)"),
+        ("js", "JavaScript script"),
+        ("py", "Python script"),
+        ("json", "JavaScript Object Notation data"),
+        ("xml", "Extensible Markup Language"),
+        ("php", "Hypertext Preprocessor script"),
+        ("sh", "Bash / shell script (Linux)"),
+        ("ps1", "PowerShell script (Windows)"),
+        ("sql", "SQL database query file"),
+    ]),
+    ("Archives and compression", [
+        ("zip", "standard compressed archive"),
+        ("rar", "WinRAR compressed archive"),
+        ("7z", "7-Zip high-compression archive"),
+        ("tar", "file archive (Unix/Linux)"),
+        ("gz", "Gzip compressed archive (Unix/Linux)"),
+    ]),
+    ("Documents and text", [
+        ("pdf", "Portable Document Format (Adobe)"),
+        ("docx", "Microsoft Word document (modern)"),
+        ("doc", "Microsoft Word document (legacy)"),
+        ("xlsx", "Microsoft Excel spreadsheet (modern)"),
+        ("xls", "Microsoft Excel spreadsheet (legacy)"),
+        ("pptx", "Microsoft PowerPoint presentation (modern)"),
+        ("ppt", "Microsoft PowerPoint presentation (legacy)"),
+        ("txt", "plain text file"),
+        ("csv", "comma-separated values"),
+        ("odt", "OpenDocument text (LibreOffice)"),
+        ("ods", "OpenDocument spreadsheet (LibreOffice)"),
+        ("rtf", "Rich Text Format"),
+    ]),
+    ("Images and graphics", [
+        ("jpg", "compressed image (JPEG)"),
+        ("jpeg", "compressed image (JPEG)"),
+        ("png", "image with transparency (Portable Network Graphics)"),
+        ("gif", "animated or simple graphic"),
+        ("svg", "vector image (Scalable Vector Graphics)"),
+        ("webp", "modern web image format"),
+        ("bmp", "uncompressed bitmap image"),
+        ("ico", "application icon or web favicon"),
+        ("psd", "Adobe Photoshop project file"),
+    ]),
+]
+LOW_FAMILIES = {"Documents and text", "Images and graphics"}  # phase 5: these extensions are only LOW
+LOW_KEYWORDS = {f".{ext}" for title, items in KEYWORD_EXT_SECTIONS if title in LOW_FAMILIES for ext, _ in items}
+
 # Detection thresholds (tune them for each case)
 MAX_BEACON_TS = 3000          # max timestamp sample size per triplet (covers the whole period)
 BEACON_MIN_CONN = 10
@@ -154,62 +213,6 @@ def init_environment():
         with open(IOC_CERTS_FILE, "w") as f:
             f.write("# Format: cert_fingerprint|threat_type\n")
     if not os.path.exists(KEYWORD_FILE):
-        # File extensions are matched as a whole extension (re:\.ext\b): .js does not match .json,
-        # .doc does not match .docx and .log does not match .login.
-        ext_sections = [
-            ("System and executables", [
-                ("exe", "Windows executable"),
-                ("msi", "Windows installer package"),
-                ("iso", "optical disc image"),
-                ("dll", "Windows dynamic-link library"),
-                ("sys", "Windows system file"),
-                ("log", "system or application log"),
-            ]),
-            ("Code and development", [
-                ("html", "HyperText Markup Language (web page)"),
-                ("css", "Cascading Style Sheets (web design)"),
-                ("js", "JavaScript script"),
-                ("py", "Python script"),
-                ("json", "JavaScript Object Notation data"),
-                ("xml", "Extensible Markup Language"),
-                ("php", "Hypertext Preprocessor script"),
-                ("sh", "Bash / shell script (Linux)"),
-                ("ps1", "PowerShell script (Windows)"),
-                ("sql", "SQL database query file"),
-            ]),
-            ("Archives and compression", [
-                ("zip", "standard compressed archive"),
-                ("rar", "WinRAR compressed archive"),
-                ("7z", "7-Zip high-compression archive"),
-                ("tar", "file archive (Unix/Linux)"),
-                ("gz", "Gzip compressed archive (Unix/Linux)"),
-            ]),
-            ("Documents and text", [
-                ("pdf", "Portable Document Format (Adobe)"),
-                ("docx", "Microsoft Word document (modern)"),
-                ("doc", "Microsoft Word document (legacy)"),
-                ("xlsx", "Microsoft Excel spreadsheet (modern)"),
-                ("xls", "Microsoft Excel spreadsheet (legacy)"),
-                ("pptx", "Microsoft PowerPoint presentation (modern)"),
-                ("ppt", "Microsoft PowerPoint presentation (legacy)"),
-                ("txt", "plain text file"),
-                ("csv", "comma-separated values"),
-                ("odt", "OpenDocument text (LibreOffice)"),
-                ("ods", "OpenDocument spreadsheet (LibreOffice)"),
-                ("rtf", "Rich Text Format"),
-            ]),
-            ("Images and graphics", [
-                ("jpg", "compressed image (JPEG)"),
-                ("jpeg", "compressed image (JPEG)"),
-                ("png", "image with transparency (Portable Network Graphics)"),
-                ("gif", "animated or simple graphic"),
-                ("svg", "vector image (Scalable Vector Graphics)"),
-                ("webp", "modern web image format"),
-                ("bmp", "uncompressed bitmap image"),
-                ("ico", "application icon or web favicon"),
-                ("psd", "Adobe Photoshop project file"),
-            ]),
-        ]
         default_keywords = [
             "# Plain keywords (case-insensitive) or regexes prefixed with re:",
             "# They are searched in path/name/prev_name of smb_files.log only.",
@@ -225,7 +228,7 @@ def init_environment():
             "confidential", "internal", "# audit",
         ]
         disabled = {"xml", "csv"}  # very common on file shares: commented out (hidden) by default
-        for title, items in ext_sections:
+        for title, items in KEYWORD_EXT_SECTIONS:
             default_keywords.append(f"# --- {title} ---")
             default_keywords += [("# " if ext in disabled else "") + f"re:\\.{ext}\\b".ljust(16) + f"  # .{ext}: {desc}"
                              for ext, desc in items]
@@ -1494,7 +1497,8 @@ def phase5_leak_hunting():
     per_kw = Counter(k[4] for k in merged)
     if per_kw:
         print("  Breakdown: " + ", ".join(f"{k}={v}" for k, v in per_kw.most_common()))
-    rows = sorted(((("critical" if kw in CRITICAL_KEYWORDS else "high" if kw in HIGH_VALUE_KEYWORDS else "medium"),
+    rows = sorted(((("critical" if kw in CRITICAL_KEYWORDS else "high" if kw in HIGH_VALUE_KEYWORDS
+                     else "low" if kw in LOW_KEYWORDS else "medium"),
                     key, val) for key, val in merged.items() for kw in (key[4],)),
                   key=lambda x: (-_SEV_RANK[x[0]], x[2][1]))  # highest severity first, then chronological
     by_sev = Counter(sev for sev, _, _ in rows)
