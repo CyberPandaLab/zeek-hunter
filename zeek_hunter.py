@@ -61,7 +61,9 @@ CLI_EXTS = None
 STD_PORTS = {80, 443, 53}
 LATERAL_PORTS = {445: "SMB", 3389: "RDP", 5985: "WinRM", 5986: "WinRM-TLS", 135: "DCE-RPC"}
 PE_MIMES = ("x-dosexec", "x-msdownload", "x-msdos-program", "portable-executable")
-HIGH_VALUE_KEYWORDS = {"ntds.dit", "id_rsa", "id_dsa", "authorized_keys", "shadow"}
+# Phase 5 keywords reported as HIGH (all the others are MEDIUM); compared with the matched text in lowercase
+HIGH_VALUE_KEYWORDS = {"ntds.dit", "id_rsa", "id_dsa", "authorized_keys", "shadow",
+                       "sam", "security", "system", "confidential"}
 FAIL_STATES = {"S0", "REJ", "RSTOS0", "RSTRH"}
 
 # Detection thresholds (tune them for each case)
