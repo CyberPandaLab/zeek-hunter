@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   backups section to their families.
 - `audit`, `.xml` and `.csv` are commented out by default (too noisy); remove the `#` to enable them.
 - `keywords.txt` accepts inline comments (two spaces, then `#`).
+- Phase 5: `SAM`, `SECURITY`, `SYSTEM` (registry hives) and `confidential` are now HIGH instead of MEDIUM.
 - Phase 5 results are sorted by severity (high first, then chronological) with a `[HIGH]` / `[MEDIUM]` tag,
   and a per-severity count.
 - The internal host score shown at the end of a run is now the same report as `summary_*.txt`: severity
