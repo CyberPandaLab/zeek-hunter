@@ -12,6 +12,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   backups section to their families.
 - `audit`, `.xml` and `.csv` are commented out by default (too noisy); remove the `#` to enable them.
 - `keywords.txt` accepts inline comments (two spaces, then `#`).
+- Phase 5 results are sorted by severity (high first, then chronological) with a `[HIGH]` / `[MEDIUM]` tag,
+  and a per-severity count.
+- The internal host score shown at the end of a run is now the same report as `summary_*.txt`: severity
+  breakdown per host, then every CRITICAL / HIGH finding.
+
+### Fixed
+- Zeek TSV escaping is decoded: a backslash logged as `\\` and bytes logged as `\xNN` are restored, so SMB
+  paths read `\\DC01\C$ Windows\ntds.dit` instead of `\\\\DC01\\C$ Windows\\ntds.dit`.
 
 ## [1.0.0] - 2026-11-07
 
