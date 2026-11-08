@@ -220,7 +220,12 @@ Every detection produces a **finding** (phase, severity, source, destination, ty
 At the end of a run (`--phase …` or menu `e`), the **internal host score** ranks each private IP by its findings.
 For each severity, the host gets `weight x (1 + log2(number of findings))`, and these are added up. The volume
 counts with diminishing returns (100 findings weigh about 7.6 times one finding, not 100 times), so a single
-CRITICAL always outweighs any number of LOW findings. This is the list of machines to investigate first.
+CRITICAL always outweighs any number of LOW findings.
+
+**Multi-phase bonus:** the score is then multiplied by `1 + 0.25 x (number of phases - 1)`, counting only the
+phases in which the host has at least one MEDIUM or worse finding (shown as `x1.25 multi-phase`, `x1.5`…).
+A host that appears in several stages of an attack (phishing, C2, lateral movement, exfiltration) goes up the
+list. This is the list of machines to investigate first.
 
 ## 7. Configuration files
 
@@ -256,6 +261,7 @@ Thresholds are set in the `CONFIGURATION` section at the top of `zeek_hunter.py`
 | `UA_BASELINE_MIN`, `UA_RARE_RATIO` | 5, 0.10 | phase 2: unusual sending client |
 | `CLICK_WINDOW` | 7 days | phase 2: max delay between receipt and a link visit |
 | `PROXY_CLIENTS_SHOWN`, `PROXY_VOLUME_MIN` | 6, 10,000 | phase 9 |
+| `SEV_WEIGHTS`, `PHASE_BONUS` | 100/25/5/1, 0.25 | per-host score: severity weights and multi-phase bonus |
 | `DISPLAY_LIMIT` | 200 | max lines on screen per section (the rest goes to the export) |
 
 ## 8. Exports
@@ -265,7 +271,7 @@ With `--out FOLDER` (or menu `e`, default `./report`), each file is timestamped 
 | File | Content |
 |---|---|
 | `summary_*.txt` | **read this first**: counts by severity/phase/type, top 15 hosts, all CRITICAL/HIGH findings |
-| `host_scores_*.csv` | score per internal host, with the count of findings per severity |
+| `host_scores_*.csv` | score per internal host, with the count of findings per severity and the multi-phase multiplier |
 | `findings_*.csv` / `.json` | all findings |
 | `emails_*.csv` | all emails: score, severity, relay, origin, sending client, header date, attachments (with SHA256), reasons… |
 | `email_links_*.csv` | all extracted links, with alerts and visits |
